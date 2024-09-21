@@ -7,14 +7,8 @@ import argparse
 import itertools
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
-DTYPE_MAP = {
-    "fp16": "cutlass::half_t",
-    "bf16": "cutlass::bfloat16_t",
-}
-
-SM = [80]  # Sm80 kernels support up to
 HEAD_DIMENSIONS = [32, 64, 96, 128, 160, 192, 256]
 IS_CAUSAL = ["false", "true"]
 KERNEL_IMPL_TEMPLATE_FWD = """#include "flash_fwd_launch_template.h"
@@ -47,8 +41,7 @@ class Kernel:
     is_causal: bool
     direction: str
 
-    @property
-    def template(self) -> str:
+    def template(self, DTYPE_MAP) -> str:
         if self.direction == "fwd":
             return KERNEL_IMPL_TEMPLATE_FWD.format(
                 DTYPE=DTYPE_MAP[self.dtype], HEAD_DIM=self.head_dim, IS_CAUSAL=self.is_causal
@@ -67,28 +60,49 @@ class Kernel:
         return f"flash_{self.direction}_hdim{self.head_dim}_{self.dtype}_{'causal_' if self.is_causal == 'true' else ''}sm{self.sm}.cu"
 
 
-def get_all_kernels() -> List[Kernel]:
+def get_all_kernels(DTYPE_MAP, SM) -> List[Kernel]:
     for direction in ["fwd", "fwd_split", "bwd"]:
         for dtype, head_dim, is_causal, sm in itertools.product(DTYPE_MAP.keys(), HEAD_DIMENSIONS, IS_CAUSAL, SM):
             yield Kernel(sm=sm, dtype=dtype, head_dim=head_dim, is_causal=is_causal, direction=direction)
 
 
-def write_kernel(kernel: Kernel, autogen_dir: Path) -> None:
+def write_kernel(kernel: Kernel, autogen_dir: Path, DTYPE_MAP) -> None:
     prelude = """// Copyright (c) 2024, Tri Dao.
 // Splitting the different head dimensions to different files to speed up compilation.
 // This file is auto-generated. See "generate_kernels.py"\n
 """
-    (autogen_dir / kernel.filename).write_text(prelude + kernel.template)
+    (autogen_dir / kernel.filename).write_text(prelude + kernel.template(DTYPE_MAP))
 
 
-def main(output_dir: Optional[str]) -> None:
+def main(sm: Optional[Literal[75, 80]], output_dir: Optional[str]) -> None:
     if output_dir is None:
         output_dir = Path(__file__).parent
     else:
         output_dir = Path(output_dir)
 
-    for kernel in get_all_kernels():
-        write_kernel(kernel, output_dir)
+    SM_DTYPE_MAP = {
+        '75': {
+            "fp16": "cutlass::half_t",
+        },
+        '80': {
+            "fp16": "cutlass::half_t",
+            "bf16": "cutlass::bfloat16_t",
+        }
+    }
+
+    if sm is None:
+        for sm in [75, 80]:
+            SM = [sm]
+            DTYPE_MAP = SM_DTYPE_MAP[str(sm)]
+
+            for kernel in get_all_kernels(DTYPE_MAP=DTYPE_MAP, SM=SM):
+                write_kernel(kernel, output_dir, DTYPE_MAP)
+    else:
+        SM = [sm]
+        DTYPE_MAP = SM_DTYPE_MAP[str(sm)]
+
+        for kernel in get_all_kernels(DTYPE_MAP=DTYPE_MAP, SM=SM):
+            write_kernel(kernel, output_dir, DTYPE_MAP)
 
 
 if __name__ == "__main__":
@@ -104,5 +118,11 @@ if __name__ == "__main__":
         help="Where to generate the kernels "
         " will default to the current directory ",
     )
+    parser.add_argument(
+        "--sm",
+        required=False,
+        help="SM to generate kernels for "
+        " will default to 75 and 80"
+    )
     args = parser.parse_args()
-    main(args.output_dir)
+    main(args.sm, args.output_dir)

@@ -254,7 +254,11 @@ __forceinline__ __device__ void relu_(Tensor<Engine, Layout> &tensor) {
 template <typename To_type, typename Engine, typename Layout>
 __forceinline__ __device__ auto convert_type_relu(Tensor<Engine, Layout> const &tensor) {
     using From_type = typename Engine::value_type;
+    #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
     static_assert(std::is_same_v<To_type, cutlass::half_t> || std::is_same_v<To_type, cutlass::bfloat16_t>);
+    #else
+    static_assert(std::is_same_v<To_type, cutlass::half_t>);
+    #endif
     static_assert(std::is_same_v<float, From_type>);
     constexpr int numel = decltype(size(tensor))::value;
     static_assert(numel % 2 == 0);

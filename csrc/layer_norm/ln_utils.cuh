@@ -2,7 +2,9 @@
 
 #include <cassert>
 
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 #include <cuda_bf16.h>
+#endif
 #include <cuda_fp16.h>
 
 #include "ln.h"
@@ -222,10 +224,12 @@ struct TypeToVec2<half> {
     using Type = half2;
 };
 
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 template<>
 struct TypeToVec2<nv_bfloat16> {
     using Type = nv_bfloat162;
 };
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -275,6 +279,7 @@ struct Converter<float2, half2>{
     }
 };
 
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 template<>
 struct Converter<float2, nv_bfloat162>{
     static inline __device__ nv_bfloat162 convert(const float2 &x) {
@@ -292,6 +297,7 @@ struct Converter<float2, nv_bfloat162>{
 #endif
     }
 };
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 

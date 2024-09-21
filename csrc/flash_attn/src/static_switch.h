@@ -76,6 +76,7 @@
   #define LOCAL_SWITCH BOOL_SWITCH
 #endif
 
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 #define FP16_SWITCH(COND, ...)               \
   [&] {                                      \
     if (COND) {                              \
@@ -86,6 +87,15 @@
       return __VA_ARGS__();                  \
     }                                        \
   }()
+#else
+#define FP16_SWITCH(COND, ...)               \
+  [&] {                                      \
+    if (COND) {                              \
+      using elem_type = cutlass::half_t;     \
+      return __VA_ARGS__();                  \
+    }                                        \
+  }()
+#endif
 
 #define HEADDIM_SWITCH(HEADDIM, ...)   \
   [&] {                                    \

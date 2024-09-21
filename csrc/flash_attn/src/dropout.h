@@ -52,8 +52,13 @@ struct Dropout {
                 // We then do a bit-wise AND between the mask and the original value (in 32-bit).
                 // We're exploiting the fact that floating point comparison is equivalent to integer
                 // comparison, since we're comparing unsigned integers whose top 8-bits are zero.
+                #if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
                 if (!encode_dropout_in_sign_bit
                     && (std::is_same<T, cutlass::half_t>::value || std::is_same<T, cutlass::bfloat16_t>::value)) {
+                #else
+                if (!encode_dropout_in_sign_bit
+                    && (std::is_same<T, cutlass::half_t>::value)) {
+                #endif
                     uint16_t rnd_16[16];
                     #pragma unroll
                     for (int i = 0; i < 16; i++) { rnd_16[i] = uint16_t(rnd_8[i]); }

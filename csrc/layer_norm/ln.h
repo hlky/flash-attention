@@ -2,7 +2,10 @@
 
 #include <unordered_map>
 #include <cuda_fp16.h>
+
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 #include <cuda_bf16.h>
+#endif
 
 #ifdef OLD_GENERATOR_PATH
 #include <ATen/CUDAGeneratorImpl.h>
@@ -179,7 +182,9 @@ extern BwdRegistry BWD_FUNCS, PARALLEL_BWD_FUNCS;
 
 using fp32 = float;
 using fp16 = half;
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 using bf16 = nv_bfloat16;
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -191,10 +196,12 @@ struct TypeId<fp16>{
     constexpr static uint32_t Value = 0;
 };
 
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 template<>
 struct TypeId<bf16>{
     constexpr static uint32_t Value = 1;
 };
+#endif
 
 template<>
 struct TypeId<fp32>{

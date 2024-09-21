@@ -12,7 +12,7 @@
 #include "flash_bwd_kernel.h"
 
 // Determine if the architecture supports FLASH and define a macro to handle parameter modifiers
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 750
 #define ARCH_SUPPORTS_FLASH
 #define KERNEL_PARAM_MODIFIER __grid_constant__
 #else
@@ -20,7 +20,7 @@
 #endif
 
 // Define a macro for unsupported architecture handling to centralize the error message
-#define FLASH_UNSUPPORTED_ARCH printf("FATAL: FlashAttention requires building with sm version sm80-sm90, but was built for < 8.0!");
+#define FLASH_UNSUPPORTED_ARCH printf("FATAL: FlashAttention requires building with sm version sm75-sm80-sm90, but was built for < 7.5!");
 
 // Use a macro to clean up kernel definitions
 #define DEFINE_FLASH_BACKWARD_KERNEL(kernelName, ...) \
@@ -139,6 +139,7 @@ void run_mha_bwd_hdim32(Flash_bwd_params &params, cudaStream_t stream) {
     if (status_ != cudaSuccess) {
       C10_CUDA_CHECK(status_);
     }
+    printf("max_smem_per_block = %d\n", max_smem_per_block);
     DROPOUT_SWITCH(params.p_dropout < 1.f, Is_dropout, [&] {
         if (max_smem_per_block >= 2 * ((3 * 128 + 2 * 128) * Headdim + 2 * 128 * 128)) { // 104 KB
             if constexpr(!Is_dropout) {  // We can afford more registers to keep V in registers
@@ -163,7 +164,7 @@ void run_mha_bwd_hdim64(Flash_bwd_params &params, cudaStream_t stream) {
     if (status_ != cudaSuccess) {
       C10_CUDA_CHECK(status_);
     }
-    // printf("max_smem_per_block = %d\n", max_smem_per_block);
+    printf("max_smem_per_block = %d\n", max_smem_per_block);
     DROPOUT_SWITCH(params.p_dropout < 1.f, Is_dropout, [&] {
         // Changing AtomLayoutMdQ from 2 to 4 takes the same time
         // run_flash_bwd<Flash_bwd_kernel_traits<Headdim, 64, 128, 8, 2, 4, 2, false, false, T>>(params, stream);

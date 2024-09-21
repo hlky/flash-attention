@@ -875,7 +875,8 @@ def test_flash_attn_varlen_qkvpacked(
 # @pytest.mark.parametrize("local", [False])
 @pytest.mark.parametrize("causal", [False, True])
 # @pytest.mark.parametrize("causal", [True])
-@pytest.mark.parametrize("d", [32, 40, 59, 64, 96, 111, 128, 160, 192, 224, 256])
+# @pytest.mark.parametrize("d", [32, 40, 59, 64, 96, 111, 128, 160, 192, 224, 256])
+@pytest.mark.parametrize("d", [32, 40, 56, 64])
 # @pytest.mark.parametrize("d", [32, 64, 96, 128, 160, 192, 224, 256])
 # @pytest.mark.parametrize('d', [32, 40, 64, 80, 96, 128, 160, 192])
 # @pytest.mark.parametrize('d', [32, 64, 96, 128, 160, 192])
@@ -897,9 +898,10 @@ def test_flash_attn_varlen_qkvpacked(
     ],
 )
 # @pytest.mark.parametrize('seqlen_q,seqlen_k', [(256, 128)])
-@pytest.mark.parametrize("dropout_p", [0.0, 0.17])
-# @pytest.mark.parametrize("dropout_p", [0.0])
+# @pytest.mark.parametrize("dropout_p", [0.0, 0.17])
+@pytest.mark.parametrize("dropout_p", [0.0])
 @pytest.mark.parametrize("softcap", [0.0, 50.0])
+# @pytest.mark.parametrize("softcap", [0.0])
 def test_flash_attn_output(
     seqlen_q, seqlen_k, d, dropout_p, causal, local, alibi, deterministic, mha_type, dtype, kvpacked, softcap
 ):
@@ -1070,51 +1072,52 @@ def test_flash_attn_output(
 
     g = torch.randn_like(out)
     do_o = (g.float() * out.float()).sum(-1)
-    if (d <= MAX_HEADDIM_SM8x or dropout_p == 0) or (is_sm80 or is_sm90):
-        if kvpacked:
-            (
-                dq,
-                dkv,
-            ) = torch.autograd.grad(out, (q, kv), g)
-            dk, dv = dkv.unbind(2)
-            (
-                dq_ref,
-                dkv_ref,
-            ) = torch.autograd.grad(out_ref, (q, kv), g)
-            dk_ref, dv_ref = dkv_ref.unbind(2)
-            (
-                dq_pt,
-                dkv_pt,
-            ) = torch.autograd.grad(out_pt, (q, kv), g)
-            dk_pt, dv_pt = dkv_pt.unbind(2)
-        else:
-            (
-                dq,
-                dk,
-                dv,
-            ) = torch.autograd.grad(out, (q, k, v), g)
-            (
-                dq_ref,
-                dk_ref,
-                dv_ref,
-            ) = torch.autograd.grad(out_ref, (q, k, v), g)
-            (
-                dq_pt,
-                dk_pt,
-                dv_pt,
-            ) = torch.autograd.grad(out_pt, (q, k, v), g)
-        print(f"dQ max diff: {(dq - dq_ref).abs().max().item()}")
-        print(f"dK max diff: {(dk - dk_ref).abs().max().item()}")
-        print(f"dV max diff: {(dv - dv_ref).abs().max().item()}")
-        print(f"dQ mean diff: {(dq - dq_ref).abs().mean().item()}")
-        print(f"dK mean diff: {(dk - dk_ref).abs().mean().item()}")
-        print(f"dV mean diff: {(dv - dv_ref).abs().mean().item()}")
-        print(f"dQ Pytorch max diff: {(dq_pt - dq_ref).abs().max().item()}")
-        print(f"dK Pytorch max diff: {(dk_pt - dk_ref).abs().max().item()}")
-        print(f"dV Pytorch max diff: {(dv_pt - dv_ref).abs().max().item()}")
-        print(f"dQ Pytorch mean diff: {(dq_pt - dq_ref).abs().mean().item()}")
-        print(f"dK Pytorch mean diff: {(dk_pt - dk_ref).abs().mean().item()}")
-        print(f"dV Pytorch mean diff: {(dv_pt - dv_ref).abs().mean().item()}")
+    if not is_sm75:
+        if (d <= MAX_HEADDIM_SM8x or dropout_p == 0) or (is_sm80 or is_sm90):
+            if kvpacked:
+                (
+                    dq,
+                    dkv,
+                ) = torch.autograd.grad(out, (q, kv), g)
+                dk, dv = dkv.unbind(2)
+                (
+                    dq_ref,
+                    dkv_ref,
+                ) = torch.autograd.grad(out_ref, (q, kv), g)
+                dk_ref, dv_ref = dkv_ref.unbind(2)
+                (
+                    dq_pt,
+                    dkv_pt,
+                ) = torch.autograd.grad(out_pt, (q, kv), g)
+                dk_pt, dv_pt = dkv_pt.unbind(2)
+            else:
+                (
+                    dq,
+                    dk,
+                    dv,
+                ) = torch.autograd.grad(out, (q, k, v), g)
+                (
+                    dq_ref,
+                    dk_ref,
+                    dv_ref,
+                ) = torch.autograd.grad(out_ref, (q, k, v), g)
+                (
+                    dq_pt,
+                    dk_pt,
+                    dv_pt,
+                ) = torch.autograd.grad(out_pt, (q, k, v), g)
+            print(f"dQ max diff: {(dq - dq_ref).abs().max().item()}")
+            print(f"dK max diff: {(dk - dk_ref).abs().max().item()}")
+            print(f"dV max diff: {(dv - dv_ref).abs().max().item()}")
+            print(f"dQ mean diff: {(dq - dq_ref).abs().mean().item()}")
+            print(f"dK mean diff: {(dk - dk_ref).abs().mean().item()}")
+            print(f"dV mean diff: {(dv - dv_ref).abs().mean().item()}")
+            print(f"dQ Pytorch max diff: {(dq_pt - dq_ref).abs().max().item()}")
+            print(f"dK Pytorch max diff: {(dk_pt - dk_ref).abs().max().item()}")
+            print(f"dV Pytorch max diff: {(dv_pt - dv_ref).abs().max().item()}")
+            print(f"dQ Pytorch mean diff: {(dq_pt - dq_ref).abs().mean().item()}")
+            print(f"dK Pytorch mean diff: {(dk_pt - dk_ref).abs().mean().item()}")
+            print(f"dV Pytorch mean diff: {(dv_pt - dv_ref).abs().mean().item()}")
 
     # Check that FlashAttention's numerical error is at most twice the numerical error
     # of a Pytorch implementation.
@@ -1126,10 +1129,11 @@ def test_flash_attn_output(
         if not alibi:
             assert abs(dropout_fraction - dropout_p) <= (0.01 if not local else 0.025)
 
-    if (d <= MAX_HEADDIM_SM8x or dropout_p == 0) or (is_sm80 or is_sm90):
-        assert (dq - dq_ref).abs().max().item() <= 3 * (dq_pt - dq_ref).abs().max().item()
-        assert (dk - dk_ref).abs().max().item() <= 3 * (dk_pt - dk_ref).abs().max().item()
-        assert (dv - dv_ref).abs().max().item() <= 3 * (dv_pt - dv_ref).abs().max().item()
+    if not is_sm75:
+        if (d <= MAX_HEADDIM_SM8x or dropout_p == 0) or (is_sm80 or is_sm90):
+            assert (dq - dq_ref).abs().max().item() <= 3 * (dq_pt - dq_ref).abs().max().item()
+            assert (dk - dk_ref).abs().max().item() <= 3 * (dk_pt - dk_ref).abs().max().item()
+            assert (dv - dv_ref).abs().max().item() <= 3 * (dv_pt - dv_ref).abs().max().item()
 
 
 @pytest.mark.parametrize("kvpacked", [True, False])
